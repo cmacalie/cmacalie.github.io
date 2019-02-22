@@ -1,0 +1,431 @@
+---
+title: "MLB Contract Distributions"
+author: "Colin Alie, Patrick Forelli, Will Phillips, William Wessman"
+date: "2/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+library(tidyverse)
+library(knitr)
+library(ggplot2)
+library(leaflet)
+```
+
+## Executive Summary
+
+In this project, we plan to analyze the contract distributions among Major League Baseball (MLB) teams. We will utilize player contract data and input/output statistics for players. We will filter our data using a minimum number of Plate Appearances (PA) and Games Played (GP) in order to only access everyday MLB players. We will analyze data from the 2009-2018 seasons, the last ten seasons.
+
+## Research Question
+
+1. What are the most valuable players in Major League Baseball in terms of salary and performance?
+
+
+2. What MLB teams spent their payroll most efficiently?
+
+
+3. What are the effects of a long term contract on a team?
+
+## Our Hypothesis
+
+* The elite team controlled players are the most valuable players
+* Most efficient teams have good quality team controlled players
+* Long term contracts for old players can hurt a team in the long run
+
+## Market Size of MLB Teams by Location
+
+```{r map, echo=FALSE, message=FALSE}
+# Import the dataset
+mapData <- read.csv("Map Data (1).csv")
+
+# For every observation, include a point on the map
+palette <- colorBin("Reds", mapData$TOTAL.PAYROLL, bins=c(60000000,100000000,150000000,200000000,250000000), pretty = FALSE)
+
+mapData %>% 
+leaflet() %>%
+  addTiles() %>%
+  setView(-96.064349, 37.655591, zoom = 4) %>%
+  addCircleMarkers(lng = mapData$LONGITUDE,
+                   lat = mapData$LATITUDE,
+                   radius = 3*mapData$RADIUS,
+                   color = ~palette(TOTAL.PAYROLL),
+                   fillOpacity = mapData$FILL..,
+                   label = mapData$LABEL,
+                   labelOptions(interactive = TRUE, clickable = TRUE, textsize = "20px")) %>%
+  addLegend("bottomleft", pal = palette, values = ~TOTAL.PAYROLL,
+            title = "Total Payroll (2018)",
+            labFormat = labelFormat(prefix = "$"),
+            opacity = 1)
+
+```
+
+## Data
+
+For our project, we source our data from Spotrac and FanGraphs. 
+
+## Spotrac
+
+Spotrac covers contract data throughout professional sports. They are able to divide up MLB contract data between team controlled, arbitration, and veteran players. We will access their data for the last eight seasons by scraping it from their website.
+
+## FanGraphs
+
+FanGraphs tracks a wide variety of MLB statistics. FanGraphs also has a variety of blogs and publications that are updated daily. For purposes of this project, we will access FanGraphs data for the last eight seasons for MLB players by scraping it off of their website. 
+
+## Spotrac Observations and Data
+
+In our Spotrac data, there are 7,458 observations with 9 variables. The variables include Salary Rank, Name of Player, Team, Position, Salary (for the year), Years (length of contract in years followed by the duration of the contract), Total Value of Contract, and Average Annual Value of Contract, and Year. 
+
+## FanGraphs Observations and Data
+
+In our FanGraphs data, there are 12,774 observations and 23 variables. Some of the variables in this data include Season, Name of Player, Team Name, Games Played, WAR (Wins Above Replacement), and Offense/Defensive Runs, to name a few.
+
+## Data Refining
+
+* WAR accurately describes a player's production given a large sample size
+* Evaluate players that are starters at their position
+* Position players: 500 Plate appearances
+* Relief pitchers: 40 appearances
+* Starting pitchers: 140 innings
+
+```{r}
+combined_data <- read.csv('combinedData (5).csv')
+team_data <- read.csv('teamData.csv')
+library(ggplot2)
+```
+
+## WAR v. Salary
+
+```{r}
+options(scipen=999)
+ggplot(combined_data, aes(x=WAR, y=Salary)) +
+  geom_point()
+```
+
+## Player Type v. Salary
+
+```{r}
+ggplot(data=subset(combined_data, !is.na(Type)), aes(x=Type, y=Salary, na.rm=TRUE)) +
+  geom_boxplot()
+```
+
+## Average Efficiency
+
+* Average Efficiency = Career Salary/ Career WAR (within data set)
+* Not inclusive of data outside 2011-2018 
+* Efficiency defines how much a team pays a player to produce one win
+* Lower Average Efficiency is more desirable. 
+* Unit for efficiency is Dollars / Win (\$/win).
+
+
+## Player Type v. Average Efficiency 
+
+```{r}
+ggplot(data=subset(combined_data, !is.na(Type)), aes(x=Type, y=AVGEfficiency, na.rm=TRUE)) +
+  geom_boxplot() +
+  ylim(0,3000000)
+```
+
+## Best Average Efficiency By Position 
+
+```{r}
+library(tidyverse)
+
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(position) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(position, Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(1:7) %>%
+  kable()
+```
+
+## Best Average Efficiency By Position (cont.)
+
+```{r}
+library(tidyverse)
+
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(position) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(position, Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(8:14) %>%
+  kable()
+```
+
+## Worst Average Efficiency By Position 
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(position) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(position, Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(1:7) %>%
+  kable()
+```
+
+## Worst Average Efficiency By Position (cont.)
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(position) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(position, Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(8:14) %>%
+  kable()
+```
+
+## Best Average Efficiency By Team
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Team) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(Name, Team, AVGEfficiency) %>% 
+  slice(1) %>%
+  ungroup() %>% 
+  slice(1:10) %>%
+  kable()
+```
+
+## Best Average Efficiency By Team (cont.)
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Team) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(Name, Team, AVGEfficiency) %>% 
+  slice(1) %>%
+  ungroup() %>% 
+  slice(11:20) %>%
+  kable()
+```
+
+## Best Average Efficiency By Team (cont.)
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Team) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(Name, Team, AVGEfficiency) %>% 
+  slice(1) %>%
+  ungroup() %>% 
+  slice(21:30) %>%
+  kable()
+```
+
+## Worst Average Efficiency By Team
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Team) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(1:10) %>% 
+  kable()
+```
+
+## Worst Average Efficiency By Team (cont.)
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Team) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(11:20) %>% 
+  kable()
+```
+
+## Worst Average Efficiency By Team (cont.)
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Team) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(Name, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  slice(21:30) %>% 
+  kable()
+```
+
+## Best Average Efficiency By Year
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Season) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(Name, Season, position, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  kable()
+```
+
+## Worst Average Efficiency By Year
+
+```{r}
+combined_data %>% 
+  filter(Team != "- - -") %>% 
+  group_by(Season) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(Name, Season, position, Team, AVGEfficiency) %>% 
+  slice(1) %>% 
+  kable()
+```
+
+## Best Average Efficiency on World Series Winning Teams
+
+```{r}
+combined_data %>% 
+  filter(Team == "Red Sox" & Season == "2018" |
+         Team == "Astros" & Season == "2017" |
+         Team == "Cubs" & Season == "2016" |
+         Team == "Royals" & Season == "2015" |
+         Team == "Giants" & Season == "2014" |
+         Team == "Red Sox" & Season == "2013" | 
+         Team == "Giants" & Season == "2012" | 
+         Team == "Cardinals" & Season == "2011") %>% 
+  arrange(AVGEfficiency) %>% 
+  select(Name, position, Team, AVGEfficiency, Season) %>% 
+  group_by(Team, Season) %>% 
+  slice(1) %>% 
+  kable()
+```
+
+## Most Efficient Teams
+
+```{r}
+team_data %>% 
+  group_by(Team) %>% 
+  arrange(AVGEfficiency) %>% 
+  select(Team,Season,AVGSalary, AVGEfficiency, Wins) %>% 
+  ungroup() %>% 
+  slice(1:10) %>% 
+  kable()
+```
+
+## Least Efficient Teams
+
+```{r}
+team_data %>% 
+  group_by(Team) %>% 
+  arrange(desc(AVGEfficiency)) %>% 
+  select(Team,Season,AVGSalary, AVGEfficiency, Wins) %>% 
+  ungroup() %>% 
+  slice(1:10) %>% 
+  kable()
+```
+
+## Case Study: Albert Pujols, 1B, Los Angeles Angels
+
+```{r}
+combined_data %>% 
+  select(Name, Season, Salary, WAR, Efficiency) %>% 
+  filter(Name == "Albert Pujols") %>% 
+  kable()
+```
+
+## Contract Value
+
+* Signed in 2012 by the Los Angeles Angels
+* 10 years 240 million
+* Pujols was 32 at the signing, 41 in the last year of the contract.
+* Will Pujols perform at a high level in his late 30's through 40's?
+* The Angels could have made better use of \$240 million, signing only veteran players.
+
+## Case Study: Adrian Beltre, 3B, Texas Rangers
+
+```{r}
+combined_data %>% 
+  select(Name, Season, Salary, WAR, Efficiency) %>% 
+  filter(Name == "Adrian Beltre") %>% 
+  arrange(Season) %>% 
+  kable()
+```
+
+* Original contract: 5 years $80 million with 6th year 16 mill team option
+* We will sign Beltre to 6 years $97
+* Younger player than pujols with a shorter contract length
+* Career average efficiency just below \$3 million per win
+* This leaves us \$143 million to spend.
+
+## Case Study: Nelson Cruz, OF/DH, Rangers/Orioles/Mariners
+
+```{r}
+combined_data %>% 
+  select(Name, Season, Salary, WAR, Efficiency) %>% 
+  filter(Name == "Nelson Cruz") %>% 
+  arrange(Season) %>% 
+  kable()
+```
+
+* In 2014, Nelson Cruz signed a 1 year / \$8million contract with the Orioles 
+* In 2015, he signed a 4 year / \$57 million contract with the Mariners 
+* For purposes of this contract, let's assume Cruz signed a 5 year / \$75 million contract
+* With an average efficiency of \$3.3 million per win, Cruz has proved his worth
+* We are left with \$68 million to spend. 
+
+## Case Study: Jed Lowrie, 2B, Athletics
+
+```{r}
+combined_data %>% 
+  select(Name, Season, Salary, WAR, Efficiency) %>% 
+  filter(Name == "Jed Lowrie") %>% 
+  arrange(Season) %>% 
+  kable()
+```
+
+* Original contract: 2 years $20 million with the Mets (19-20)
+* Our offer: 2 years $22 million
+* Average efficiency less than \$1.5 million per win
+* We are still left with \$46 million to spend. 
+
+## Case Study: Yasmani Grandal, C, Dodgers
+
+```{r}
+combined_data %>% 
+  select(Name, Season, Salary, WAR, Efficiency) %>%
+  filter(Name == "Yasmani Grandal") %>% 
+  arrange(Season) %>% 
+  kable()
+```
+
+* Original contract: 1 year $16 million with the Brewers in 2019
+* Our offer: 2 years $32 million 
+* Average Efficiency yields \$1684286 per win
+* $14 million left over.
+
+## Case Study: Conclusion
+
+* Albert Pujols average efficiency: $12120192
+* Signed players average efficiency: $2380631 with $14 million left over.
+
+
+## Conclusion
+
+* Original hypothesis holds true
+* Cheaper/team controlled players are more efficient than veterans
+* Teams with more team controlled players are generally more efficient
+* Long term contracts can monopolize a team's payroll and restrict their ability to improve their team.
+
